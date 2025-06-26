@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Vocal Assistant</title>
+</head>
+<body>
+  <h1>🎙️ Upload your voice</h1>
+  
+  <input type="file" id="audioFile" accept="audio/*" />
+  <button onclick="sendAudio()">Send</button>
+
+  <h2>🧠 Assistant Response:</h2>
+  <p id="userText"></p>
+  <p id="responseText"></p>
+
+  <h2>🔊 Listen to response:</h2>
+  <audio id="audioPlayer" controls></audio>
+
+  <script>
+    async function sendAudio() {
+      const fileInput = document.getElementById('audioFile');
+      if (fileInput.files.length === 0) {
+        alert("Choisis un fichier audio");
+        return;
+      }
+
+      const audioFile = fileInput.files[0];
+      const formData = new FormData();
+      formData.append('audio', audioFile);
+
+      try {
+        const response = await fetch('http://127.0.0.1:5000/chat', {
+          method: 'POST',
+          body: formData
+        });
+
+        const data = await response.json();
+        console.log(data);
+
+        // Affiche la transcription et la réponse textuelle
+        document.getElementById('userText').textContent = `You said: ${data.user_text}`;
+        document.getElementById('responseText').textContent = `Assistant: ${data.response}`;
+
+        if (data.audio_response) {
+          const audioPlayer = document.getElementById('audioPlayer');
+          audioPlayer.src = `http://127.0.0.1:5000${data.audio_response}`;
+          audioPlayer.play();
+        } else {
+          alert("Pas de fichier audio en réponse");
+        }
+      } catch (error) {
+        console.error("Erreur lors de la requête:", error);
+        alert("Erreur lors de la communication avec le serveur.");
+      }
+    }
+  </script>
+</body>
+</html>

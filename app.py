@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory, send_file
 from whisper_utils import transcribe_audio
 from llm_utils import generate_response
 from tts_utils import speak_response
@@ -17,31 +17,34 @@ def chat():
     filename = audio.filename
     print(f"filename = '{filename}'")
 
-    # Si filename est vide ou None, donne un nom par défaut
     if not filename:
         filename = "default.wav"
 
-    # Crée le dossier audio s'il n'existe pas
     if not os.path.exists("audio"):
         os.makedirs("audio")
 
     audio_path = os.path.join("audio", filename)
     print(f"audio_path = '{audio_path}'")
 
-    # Sauvegarde le fichier audio
     audio.save(audio_path)
 
-    # Transcription
     user_text = transcribe_audio(audio_path)
-
-    # Génération de la réponse
     response = generate_response(user_text)
-
-    # Synthèse vocale (retourne le chemin du fichier audio généré)
     audio_response_path = speak_response(response)
 
-    return jsonify({"user_text": user_text, "response": response, "audio_response": audio_response_path})
+    return jsonify({
+        "user_text": user_text,
+        "response": response,
+        "audio_response": f"/audio/{os.path.basename(audio_response_path)}"
+    })
 
+
+@app.route('/audio/<filename>')
+def serve_audio(filename):
+    return send_from_directory('audio', filename)
+@app.route('/')
+def index():
+    return send_file('static/index.html')
 
 if __name__ == "__main__":
     app.run(debug=True)
