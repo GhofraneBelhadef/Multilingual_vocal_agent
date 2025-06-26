@@ -2,56 +2,90 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Vocal Assistant</title>
+  <title>Real-time Voice Assistant</title>
 </head>
 <body>
-  <h1>🎙️ Upload your voice</h1>
+  <h1>🎙️ Real-time Voice Assistant</h1>
   
-  <input type="file" id="audioFile" accept="audio/*" />
-  <button onclick="sendAudio()">Send</button>
+  <button id="startBtn">Start Conversation</button>
+  <button id="stopBtn" disabled>Stop Conversation</button>
 
   <h2>🧠 Assistant Response:</h2>
-  <p id="userText"></p>
-  <p id="responseText"></p>
+  <p><b>You said:</b> <span id="userText"></span></p>
+  <p><b>Assistant:</b> <span id="responseText"></span></p>
 
   <h2>🔊 Listen to response:</h2>
   <audio id="audioPlayer" controls></audio>
 
   <script>
-    async function sendAudio() {
-      const fileInput = document.getElementById('audioFile');
-      if (fileInput.files.length === 0) {
-        alert("Choisis un fichier audio");
+    let mediaRecorder;
+    let chunks = [];
+    let isRecording = false;
+
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const userTextSpan = document.getElementById('userText');
+    const responseTextSpan = document.getElementById('responseText');
+    const audioPlayer = document.getElementById('audioPlayer');
+
+    startBtn.onclick = async () => {
+      if (!navigator.mediaDevices) {
+        alert("getUserMedia not supported in your browser.");
         return;
       }
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      
+      mediaRecorder.ondataavailable = async (e) => {
+        chunks.push(e.data);
+        if (mediaRecorder.state === 'recording') {
+          // Quand on a collecté assez de chunks (par ex 3), on envoie
+          if (chunks.length >= 3) {
+            const blob = new Blob(chunks, { type: 'audio/webm' });
+            chunks = [];
+            await sendAudioChunk(blob);
+          }
+        }
+      };
 
-      const audioFile = fileInput.files[0];
+      mediaRecorder.onstop = () => {
+        chunks = [];
+      };
+
+      mediaRecorder.start(500); // divise en tranches de 500ms
+      isRecording = true;
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    };
+
+    stopBtn.onclick = () => {
+      if (mediaRecorder && isRecording) {
+        mediaRecorder.stop();
+        isRecording = false;
+        startBtn.disabled = false;
+        stopBtn.disabled = true;
+      }
+    };
+
+    async function sendAudioChunk(blob) {
       const formData = new FormData();
-      formData.append('audio', audioFile);
-
+      formData.append('audio', blob, 'chunk.webm');
       try {
         const response = await fetch('http://127.0.0.1:5000/chat', {
           method: 'POST',
-          body: formData
+          body: formData,
         });
-
         const data = await response.json();
-        console.log(data);
 
-        // Affiche la transcription et la réponse textuelle
-        document.getElementById('userText').textContent = `You said: ${data.user_text}`;
-        document.getElementById('responseText').textContent = `Assistant: ${data.response}`;
+        // Affichage texte
+        userTextSpan.textContent = data.user_text;
+        responseTextSpan.textContent = data.response;
 
-        if (data.audio_response) {
-          const audioPlayer = document.getElementById('audioPlayer');
-          audioPlayer.src = `http://127.0.0.1:5000${data.audio_response}`;
-          audioPlayer.play();
-        } else {
-          alert("Pas de fichier audio en réponse");
-        }
+        // Lecture audio réponse
+        audioPlayer.src = `http://127.0.0.1:5000${data.audio_response}`;
+        audioPlayer.play();
       } catch (error) {
-        console.error("Erreur lors de la requête:", error);
-        alert("Erreur lors de la communication avec le serveur.");
+        console.error("Error sending audio chunk:", error);
       }
     }
   </script>

@@ -4,6 +4,7 @@ from llm_utils import generate_response
 from tts_utils import speak_response
 from flask_cors import CORS
 import os
+import uuid
 
 app = Flask(__name__)
 CORS(app)
@@ -14,22 +15,22 @@ def chat():
     if audio is None:
         return jsonify({"error": "No audio file provided"}), 400
 
-    filename = audio.filename
-    print(f"filename = '{filename}'")
-
-    if not filename:
-        filename = "default.wav"
+    # Génère un nom unique pour chaque fichier audio reçu
+    filename = f"{uuid.uuid4()}.webm"
 
     if not os.path.exists("audio"):
         os.makedirs("audio")
 
     audio_path = os.path.join("audio", filename)
-    print(f"audio_path = '{audio_path}'")
-
     audio.save(audio_path)
 
+    # Transcription
     user_text = transcribe_audio(audio_path)
+
+    # Génération de la réponse
     response = generate_response(user_text)
+
+    # Synthèse vocale (retourne chemin du fichier audio généré)
     audio_response_path = speak_response(response)
 
     return jsonify({
@@ -38,12 +39,13 @@ def chat():
         "audio_response": f"/audio/{os.path.basename(audio_response_path)}"
     })
 
-
 @app.route('/audio/<filename>')
 def serve_audio(filename):
     return send_from_directory('audio', filename)
+
 @app.route('/')
 def index():
+    # Sert le fichier index.html situé dans le dossier static
     return send_file('static/index.html')
 
 if __name__ == "__main__":
